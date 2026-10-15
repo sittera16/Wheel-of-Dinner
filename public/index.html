@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dinner Wheel</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #E3ECEE;
+    --surface: #FFFFFF;
+    --ink: #1F2A30;
+    --muted: #56666E;
+    --line: #C6D4D8;
+    --accent: #2F6B45;
+    --accent-ink: #FFFFFF;
+    --danger: #9B2F3A;
+    --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #162026;
+      --surface: #1F2C33;
+      --ink: #E6EEF0;
+      --muted: #9DB0B8;
+      --line: #33454E;
+      --accent: #74B88A;
+      --accent-ink: #10201A;
+      --danger: #E7848E;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 1rem;
+    line-height: 1.5;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(2.2rem, 7vw, 3.4rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin: 0;
+  }
+  .sync { font-size: 0.875rem; color: var(--muted); }
+  .layout { display: grid; gap: 2.5rem; margin-top: 1.75rem; }
+  @media (min-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; }
+  }
+
+  /* Wheel */
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
+  .wheel-box { position: relative; width: min(88vw, 440px); aspect-ratio: 1; }
+  canvas { width: 100%; height: 100%; display: block; }
+  .pointer {
+    position: absolute; left: 50%; top: -6px; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 16px solid transparent; border-right: 16px solid transparent;
+    border-top: 30px solid var(--ink);
+    filter: drop-shadow(0 2px 0 var(--bg));
+    z-index: 2;
+  }
+  .spin-btn {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 26%; aspect-ratio: 1; border-radius: 50%;
+    border: 5px solid var(--ink);
+    background: var(--surface); color: var(--ink);
+    font-family: var(--display); font-weight: 800; font-size: clamp(1rem, 4vw, 1.35rem);
+    cursor: pointer;
+    transition: transform 120ms ease;
+  }
+  .spin-btn:hover:not(:disabled) { transform: translate(-50%, -50%) scale(1.05); }
+  .spin-btn:active:not(:disabled) { transform: translate(-50%, -50%) scale(0.97); }
+  .spin-btn:disabled { cursor: default; opacity: 0.85; }
+
+  .filters { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 0.75rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .chip {
+    border: 1.5px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 999px; padding: 0.25rem 0.75rem; font: inherit; font-size: 0.875rem; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; }
+  .check input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+  .pool-note { font-size: 0.875rem; color: var(--muted); margin: 0; }
+
+  .result {
+    width: 100%; max-width: 440px;
+    background: var(--surface); border: 2px solid var(--ink); border-radius: 18px;
+    padding: 1.25rem 1.25rem 1.1rem;
+  }
+  .result[hidden] { display: none; }
+  .result h2 {
+    font-family: var(--display); font-weight: 800; font-size: 1.9rem; line-height: 1.1;
+    letter-spacing: -0.02em; margin: 0 0 0.4rem;
+  }
+  .result p { margin: 0.4rem 0 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+
+  /* Buttons & form */
+  .btn {
+    font: inherit; font-weight: 700; border-radius: 10px; padding: 0.6rem 1rem; cursor: pointer;
+    border: 2px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+  }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn.small { padding: 0.3rem 0.65rem; font-size: 0.875rem; border-radius: 8px; }
+  .btn.danger { background: transparent; color: var(--danger); border-color: transparent; }
+  .link { color: var(--accent); font-weight: 700; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  section h2.title {
+    font-family: var(--display); font-weight: 700; font-size: 1.6rem; letter-spacing: -0.02em; margin: 0 0 0.75rem;
+  }
+  form {
+    background: var(--surface); border-radius: 18px; padding: 1.1rem; display: grid; gap: 0.75rem;
+    border: 1.5px solid var(--line);
+  }
+  label { display: grid; gap: 0.25rem; font-weight: 700; font-size: 0.9rem; }
+  label span.hint { font-weight: 400; color: var(--muted); }
+  input[type="text"], input[type="url"], textarea {
+    font: inherit; font-weight: 400; color: var(--ink); background: var(--bg);
+    border: 1.5px solid var(--line); border-radius: 10px; padding: 0.55rem 0.7rem; width: 100%;
+  }
+  textarea { min-height: 4.5rem; resize: vertical; }
+  .row2 { display: grid; gap: 0.75rem; }
+  @media (min-width: 520px) { .row2 { grid-template-columns: 1fr 1fr; } }
+
+  .list-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin: 1.75rem 0 0.5rem; }
+  .list-head h3 { font-family: var(--display); font-weight: 700; font-size: 1.2rem; margin: 0; }
+  .search { max-width: 12rem; }
+  ul.recipes { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--line); }
+  ul.recipes li {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; align-items: start;
+    padding: 0.8rem 0; border-bottom: 1.5px solid var(--line);
+  }
+  ul.recipes li.off .name { color: var(--muted); text-decoration: line-through; }
+  .name { font-weight: 700; }
+  .meta { font-size: 0.85rem; color: var(--muted); }
+  .row-actions { display: flex; gap: 0.15rem; flex-wrap: wrap; justify-content: flex-end; }
+  .empty { color: var(--muted); padding: 1rem 0; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    background: var(--ink); color: var(--bg); padding: 0.6rem 1rem; border-radius: 10px;
+    font-size: 0.95rem; max-width: 90vw; z-index: 10;
+  }
+  .toast[hidden] { display: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>What's for dinner?</h1>
+    <span class="sync" id="sync">Loading recipes…</span>
+  </header>
+
+  <div class="layout">
+    <section class="stage" aria-label="Dinner wheel">
+      <div class="wheel-box">
+        <div class="pointer" aria-hidden="true"></div>
+        <canvas id="wheel" aria-hidden="true"></canvas>
+        <button class="spin-btn" id="spin">Spin</button>
+      </div>
+
+      <div class="result" id="result" hidden aria-live="polite">
+        <h2 id="r-name"></h2>
+        <div class="meta" id="r-meta"></div>
+        <p id="r-notes"></p>
+        <p id="r-link"></p>
+        <div class="actions">
+          <button class="btn" id="make">We're making this</button>
+          <button class="btn ghost" id="again">Spin again</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <div class="chips" id="chips" aria-label="Only spin these tags"></div>
+        <label class="check"><input type="checkbox" id="skipRecent" checked> Skip meals we made in the last 7 days</label>
+        <p class="pool-note" id="pool-note"></p>
+      </div>
+    </section>
+
+    <section aria-labelledby="recipes-title">
+      <h2 class="title" id="recipes-title">Recipes</h2>
+      <form id="form" autocomplete="off">
+        <label>Name <input type="text" id="f-name" maxlength="120" required placeholder="Sheet-pan chicken fajitas"></label>
+        <div class="row2">
+          <label>Link <span class="hint">optional</span><input type="url" id="f-url" placeholder="https://…"></label>
+          <label>Tags <span class="hint">comma separated</span><input type="text" id="f-tags" placeholder="chicken, quick"></label>
+        </div>
+        <label>Notes <span class="hint">optional</span><textarea id="f-notes" maxlength="1000" placeholder="Double the sauce. Kids like it with rice."></textarea></label>
+        <div class="actions" style="margin-top:0">
+          <button class="btn" type="submit" id="f-submit">Add recipe</button>
+          <button class="btn ghost" type="button" id="f-cancel" hidden>Cancel</button>
+        </div>
+      </form>
+
+      <div class="list-head">
+        <h3 id="count">Your recipes</h3>
+        <input type="text" class="search" id="search" placeholder="Search" aria-label="Search recipes">
+      </div>
+      <ul class="recipes" id="list"></ul>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const COLORS = ["#3F7D4E", "#E8A33D", "#8E2C48", "#2E6E8E", "#D9C46A", "#4B3A6B", "#B84A2B", "#7FA35B"];
+  const DARK_TEXT = new Set(["#E8A33D", "#D9C46A", "#7FA35B"]);
+  const LOCAL_KEY = "dinnerwheel-recipes";
+  const PASS_KEY = "dinnerwheel-passcode";
+  const RECENT_DAYS = 7;
+
+  const $ = (id) => document.getElementById(id);
+  const state = {
+    recipes: [],
+    mode: "cloud",
+    tags: new Set(),
+    editing: null,
+    rotation: 0,
+    spinning: false,
+    picked: null,
+  };
+
+  /* ---------- storage ---------- */
+  const readLocal = () => {
+    try { return JSON.parse(localStorage.getItem(LOCAL_KEY)) || []; } catch { return []; }
+  };
+  const writeLocal = (list) => {
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(list)); } catch {}
+  };
+  const getPass = () => { try { return localStorage.getItem(PASS_KEY) || ""; } catch { return ""; } };
+  const setPass = (p) => { try { localStorage.setItem(PASS_KEY, p); } catch {} };
+
+  function applyOp(list, op) {
+    const copy = list.map((r) => ({ ...r }));
+    if (op.action === "add") {
+      copy.push({ ...op.recipe, id: op.recipe.id || crypto.randomUUID(), createdAt: new Date().toISOString() });
+    } else if (op.action === "update") {
+      const r = copy.find((x) => x.id === op.id);
+      if (r) Object.assign(r, op.changes);
+    } else if (op.action === "delete") {
+      return copy.filter((x) => x.id !== op.id);
+    }
+    return copy;
+  }
+
+  async function load() {
+    try {
+      const res = await fetch("/api/recipes", { cache: "no-store" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (!Array.isArray(data.recipes)) throw new Error();
+      state.mode = "cloud";
+      state.recipes = data.recipes;
+    } catch {
+      state.mode = "local";
+      state.recipes = readLocal();
+    }
+    $("sync").textContent = state.mode === "cloud"
+      ? "Shared across your devices"
+      : "Saving on this device only";
+  }
+
+  async function send(op, retried = false) {
+    if (state.mode === "local") {
+      state.recipes = applyOp(state.recipes, op);
+      writeLocal(state.recipes);
+      return true;
+    }
+    try {
+      const res = await fetch("/api/recipes", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-passcode": getPass() },
+        body: JSON.stringify(op),
+      });
+      if (res.status === 401 && !retried) {
+        const p = prompt("Enter your household passcode to make changes:");
+        if (!p) { toast("Change not saved. A passcode is needed to edit recipes."); return false; }
+        setPass(p.trim());
+        return send(op, true);
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || "Change not saved. Try again."); return false; }
+      state.recipes = data.recipes;
+      return true;
+    } catch {
+      toast("Couldn't reach the server. Check your connection and try again.");
+      return false;
+    }
+  }
+
+  /* ---------- helpers ---------- */
+  const parseTags = (s) => [...new Set(s.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 10);
+  const daysSince = (iso) => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 : Infinity;
+  const lastMadeText = (iso) => {
+    if (!iso) return "Not made yet";
+    const d = Math.floor(daysSince(iso));
+    if (d <= 0) return "Made today";
+    if (d === 1) return "Made yesterday";
+    return `Made ${d} days ago`;
+  };
+  const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? u : "";
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.hidden = true), 3200);
+  }
+
+  function pool() {
+    const skip = $("skipRecent").checked;
+    return state.recipes
+      .filter((r) => r.active !== false)
+      .filter((r) => !state.tags.size || (r.tags || []).some((t) => state.tags.has(t)))
+      .filter((r) => !skip || daysSince(r.lastMade) >= RECENT_DAYS)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /* ---------- wheel ---------- */
+  const canvas = $("wheel");
+  const ctx = canvas.getContext("2d");
+  let wheelItems = [];
+
+  function sizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(w * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawWheel();
+  }
+
+  function drawWheel() {
+    const size = canvas.clientWidth;
+    if (!size) return;
+    const css = getComputedStyle(document.documentElement);
+    const ink = css.getPropertyValue("--ink").trim();
+    const surface = css.getPropertyValue("--surface").trim();
+    const muted = css.getPropertyValue("--muted").trim();
+    const cx = size / 2, cy = size / 2, r = size / 2 - 8;
+    ctx.clearRect(0, 0, size, size);
+
+    const n = wheelItems.length;
+    if (!n) {
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = surface; ctx.fill();
+      ctx.lineWidth = 8; ctx.strokeStyle = ink; ctx.stroke();
+      ctx.fillStyle = muted; ctx.font = `600 ${Math.max(13, size / 30)}px ${css.getPropertyValue("--body")}`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(state.recipes.length ? "No meals match these filters" : "Add a recipe to fill the wheel", cx, cy + size * 0.22);
+      return;
+    }
+
+    const seg = (Math.PI * 2) / n;
+    const fontSize = Math.max(10, Math.min(18, size / (n > 16 ? 34 : n > 10 ? 28 : 24)));
+    for (let i = 0; i < n; i++) {
+      const a0 = state.rotation + i * seg - Math.PI / 2;
+      const color = n > 1 && i === n - 1 && colorIndex(i) === colorIndex(0) ? COLORS[(colorIndex(i) + 2) % COLORS.length] : COLORS[colorIndex(i)];
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, a0, a0 + seg); ctx.closePath();
+      ctx.fillStyle = color; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = surface; ctx.stroke();
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(a0 + seg / 2);
+      ctx.fillStyle = DARK_TEXT.has(color) ? "#1F2A30" : "#FFFFFF";
+      ctx.font = `700 ${fontSize}px ${css.getPropertyValue("--body")}`;
+      ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      const room = r - 16 - size * 0.13 - 12;
+      let label = wheelItems[i].name;
+      if (ctx.measureText(label).width > room) {
+        while (label.length > 1 && ctx.measureText(label + "…").width > room) label = label.slice(0, -1);
+        label = label.trimEnd() + "…";
+      }
+      ctx.fillText(label, r - 16, 0);
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.lineWidth = 8; ctx.strokeStyle = ink; ctx.stroke();
+  }
+  const colorIndex = (i) => i % COLORS.length;
+
+  function spin() {
+    if (state.spinning) return;
+    wheelItems = pool();
+    if (!wheelItems.length) {
+      toast(state.recipes.length ? "No meals match. Clear a tag or turn off “Skip meals we made”." : "Add a recipe first.");
+      drawWheel();
+      return;
+    }
+    const n = wheelItems.length;
+    const seg = (Math.PI * 2) / n;
+    const pick = Math.floor(Math.random() * n);
+    const jitter = (Math.random() - 0.5) * seg * 0.7;
+    const want = -(pick + 0.5) * seg + jitter;
+    const TAU = Math.PI * 2;
+    const delta = (((want - state.rotation) % TAU) + TAU) % TAU;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const start = state.rotation;
+    const target = start + (reduce ? 0 : TAU * 6) + delta;
+    const duration = reduce ? 500 : 4800;
+    const t0 = performance.now();
+
+    state.spinning = true;
+    $("spin").disabled = true;
+    $("result").hidden = true;
+
+    const ease = (t) => 1 - Math.pow(1 - t, 4);
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / duration);
+      state.rotation = start + (target - start) * ease(t);
+      drawWheel();
+      if (t < 1) requestAnimationFrame(frame);
+      else {
+        state.rotation = target % TAU;
+        state.spinning = false;
+        $("spin").disabled = false;
+        showResult(wheelItems[pick]);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function showResult(r) {
+    state.picked = r.id;
+    $("r-name").textContent = r.name;
+    $("r-meta").textContent = [(r.tags || []).join(", "), lastMadeText(r.lastMade)].filter(Boolean).join(" | ");
+    $("r-notes").textContent = r.notes || "";
+    $("r-notes").hidden = !r.notes;
+    const link = $("r-link");
+    link.textContent = "";
+    const u = safeUrl(r.url);
+    if (u) {
+      const a = document.createElement("a");
+      a.href = u; a.target = "_blank"; a.rel = "noopener"; a.className = "link";
+      a.textContent = "Open the recipe";
+      link.append(a);
+    }
+    link.hidden = !u;
+    $("result").hidden = false;
+    $("make").disabled = false;
+    $("make").textContent = "We're making this";
+  }
+
+  /* ---------- rendering ---------- */
+  function renderChips() {
+    const all = [...new Set(state.recipes.flatMap((r) => r.tags || []))].sort();
+    for (const t of [...state.tags]) if (!all.includes(t)) state.tags.delete(t);
+    const box = $("chips");
+    box.textContent = "";
+    if (!all.length) return;
+    const allBtn = document.createElement("button");
+    allBtn.className = "chip"; allBtn.type = "button";
+    allBtn.textContent = "Everything";
+    allBtn.setAttribute("aria-pressed", String(!state.tags.size));
+    allBtn.onclick = () => { state.tags.clear(); refresh(); };
+    box.append(allBtn);
+    for (const t of all) {
+      const b = document.createElement("button");
+      b.className = "chip"; b.type = "button"; b.textContent = t;
+      b.setAttribute("aria-pressed", String(state.tags.has(t)));
+      b.onclick = () => { state.tags.has(t) ? state.tags.delete(t) : state.tags.add(t); refresh(); };
+      box.append(b);
+    }
+  }
+
+  function renderList() {
+    const q = $("search").value.trim().toLowerCase();
+    const list = $("list");
+    list.textContent = "";
+    const items = [...state.recipes]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .filter((r) => !q || r.name.toLowerCase().includes(q) || (r.tags || []).some((t) => t.includes(q)));
+    $("count").textContent = `Your recipes (${state.recipes.length})`;
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.style.display = "block";
+      li.textContent = state.recipes.length ? "No recipes match that search." : "No recipes yet. Add the first one above.";
+      list.append(li);
+      return;
+    }
+    for (const r of items) {
+      const li = document.createElement("li");
+      if (r.active === false) li.classList.add("off");
+
+      const body = document.createElement("div");
+      const name = document.createElement("div");
+      name.className = "name";
+      const u = safeUrl(r.url);
+      if (u) {
+        const a = document.createElement("a");
+        a.href = u; a.target = "_blank"; a.rel = "noopener"; a.className = "link";
+        a.textContent = r.name;
+        name.append(a);
+      } else name.textContent = r.name;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = [(r.tags || []).join(", "), lastMadeText(r.lastMade), r.active === false ? "Off the wheel" : ""].filter(Boolean).join(" | ");
+      body.append(name, meta);
+
+      const acts = document.createElement("div");
+      acts.className = "row-actions";
+      const toggle = btn(r.active === false ? "Put on wheel" : "Take off wheel", "ghost small", async () => {
+        if (await send({ action: "update", id: r.id, changes: { active: r.active === false } })) refresh();
+      });
+      const edit = btn("Edit", "ghost small", () => startEdit(r));
+      const del = btn("Delete", "danger small", async () => {
+        if (!confirm(`Delete “${r.name}”?`)) return;
+        if (await send({ action: "delete", id: r.id })) { toast(`Deleted ${r.name}`); refresh(); }
+      });
+      acts.append(toggle, edit, del);
+      li.append(body, acts);
+      list.append(li);
+    }
+  }
+
+  function btn(text, cls, onClick) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = `btn ${cls}`; b.textContent = text; b.onclick = onClick;
+    return b;
+  }
+
+  function renderPoolNote() {
+    const p = pool();
+    const total = state.recipes.length;
+    $("pool-note").textContent = total
+      ? `${p.length} of ${total} meals on the wheel right now.`
+      : "";
+  }
+
+  function refresh() {
+    renderChips();
+    renderList();
+    renderPoolNote();
+    if (!state.spinning) { wheelItems = pool(); drawWheel(); }
+  }
+
+  /* ---------- form ---------- */
+  function startEdit(r) {
+    state.editing = r.id;
+    $("f-name").value = r.name;
+    $("f-url").value = r.url || "";
+    $("f-tags").value = (r.tags || []).join(", ");
+    $("f-notes").value = r.notes || "";
+    $("f-submit").textContent = "Save changes";
+    $("f-cancel").hidden = false;
+    $("form").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("f-name").focus({ preventScroll: true });
+  }
+  function resetForm() {
+    state.editing = null;
+    $("form").reset();
+    $("f-submit").textContent = "Add recipe";
+    $("f-cancel").hidden = true;
+  }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("f-name").value.trim();
+    if (!name) return;
+    const data = {
+      name,
+      url: safeUrl($("f-url").value.trim()),
+      tags: parseTags($("f-tags").value),
+      notes: $("f-notes").value.trim(),
+    };
+    $("f-submit").disabled = true;
+    const ok = state.editing
+      ? await send({ action: "update", id: state.editing, changes: data })
+      : await send({ action: "add", recipe: { ...data, active: true, lastMade: null } });
+    $("f-submit").disabled = false;
+    if (ok) {
+      toast(state.editing ? `Saved ${name}` : `Added ${name}`);
+      resetForm();
+      refresh();
+    }
+  });
+  $("f-cancel").onclick = resetForm;
+  $("search").addEventListener("input", renderList);
+  $("skipRecent").addEventListener("change", refresh);
+  $("spin").onclick = spin;
+  $("again").onclick = spin;
+  $("make").onclick = async () => {
+    if (!state.picked) return;
+    $("make").disabled = true;
+    const ok = await send({ action: "update", id: state.picked, changes: { lastMade: new Date().toISOString() } });
+    if (ok) {
+      $("make").textContent = "Marked as made today";
+      const r = state.recipes.find((x) => x.id === state.picked);
+      if (r) $("r-meta").textContent = [(r.tags || []).join(", "), lastMadeText(r.lastMade)].filter(Boolean).join(" | ");
+      renderList(); renderPoolNote();
+    } else $("make").disabled = false;
+  };
+
+  window.addEventListener("resize", sizeCanvas);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawWheel);
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible" && state.mode === "cloud" && !state.spinning) {
+      await load(); refresh();
+    }
+  });
+
+  (async () => {
+    sizeCanvas();
+    await load();
+    refresh();
+    document.fonts && document.fonts.ready.then(drawWheel);
+  })();
+})();
+</script>
+</body>
+</html>
