@@ -17,6 +17,7 @@ const tags = (v) =>
   Array.isArray(v)
     ? [...new Set(v.map((t) => str(t, 30).toLowerCase()).filter(Boolean))].slice(0, 10)
     : [];
+const level = (v) => (Number.isInteger(v) && v >= 0 && v <= 3 ? v : 0);
 const date = (v) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
 
 // Only keep fields we know about, with sane limits.
@@ -27,6 +28,8 @@ function clean(input, existing = {}) {
   if ("tags" in input) out.tags = tags(input.tags);
   if ("notes" in input) out.notes = str(input.notes, 1000);
   if ("active" in input) out.active = input.active !== false;
+  if ("rating" in input) out.rating = level(input.rating);
+  if ("price" in input) out.price = level(input.price);
   if ("lastMade" in input) out.lastMade = date(input.lastMade);
   return out;
 }
@@ -60,6 +63,8 @@ export default async (req) => {
       tags: [],
       notes: "",
       active: true,
+      rating: 0,
+      price: 0,
       lastMade: null,
       createdAt: new Date().toISOString(),
     });
