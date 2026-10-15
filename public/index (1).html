@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140F3A">
+<title>Wheel of Dinner</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Game-show stage: always dark, like a studio set under lights. */
+  :root {
+    color-scheme: dark;
+    --stage: #140F3A;
+    --stage-hi: #2B1F7A;
+    --surface: #1E1752;
+    --ink: #FFF6E0;
+    --muted: #B9B2E6;
+    --line: #3D3390;
+    --gold: #FFC93C;
+    --gold-ink: #2A1A00;
+    --bulb: #FFE9A8;
+    --bulb-off: #6B5A2A;
+    --danger: #FF8A95;
+    --display: "Bungee", "Arial Black", Impact, sans-serif;
+    --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      radial-gradient(ellipse 70% 55% at 30% 18%, var(--stage-hi), transparent 70%),
+      var(--stage);
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 1rem;
+    line-height: 1.5;
+    min-height: 100vh;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+
+  /* Marquee title with a ring of bulbs that chase while the wheel spins */
+  header { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+  .marquee {
+    --b: 22px;
+    padding: 13px;
+    border-radius: 22px;
+    background:
+      radial-gradient(circle at 25% 50%, var(--bulb) 0 3.5px, transparent 4.5px) 0 0 / var(--b) var(--b),
+      radial-gradient(circle at 75% 50%, var(--bulb-off) 0 3.5px, transparent 4.5px) 0 0 / var(--b) var(--b),
+      #3A2800;
+    box-shadow: 0 0 28px rgba(255, 201, 60, 0.25);
+  }
+  .marquee.chasing { animation: chase 0.35s steps(2) infinite; }
+  .marquee.flash { animation: flash 0.22s steps(2) 6; }
+  @keyframes chase { to { background-position: var(--b) 0, var(--b) 0, 0 0; } }
+  @keyframes flash { 50% { box-shadow: 0 0 60px rgba(255, 201, 60, 0.85); filter: brightness(1.35); } }
+  h1 {
+    margin: 0;
+    background: var(--stage);
+    border-radius: 12px;
+    padding: 0.55rem 1.4rem 0.45rem;
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(1.9rem, 7.5vw, 3.4rem);
+    line-height: 1;
+    color: var(--gold);
+    text-shadow: 0 3px 0 #B5480F, 0 6px 0 #5A1F06;
+    text-align: center;
+  }
+  .header-row { display: flex; gap: 1rem; align-items: center; font-size: 0.875rem; color: var(--muted); }
+  .sound-btn {
+    font: inherit; color: var(--ink); background: transparent; border: 1.5px solid var(--line);
+    border-radius: 999px; padding: 0.2rem 0.75rem; cursor: pointer;
+  }
+
+  .layout { display: grid; gap: 2.5rem; margin-top: 1.75rem; }
+  @media (min-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; }
+  }
+
+  /* Wheel */
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
+  .wheel-box { position: relative; width: min(88vw, 440px); aspect-ratio: 1; }
+  canvas { width: 100%; height: 100%; display: block; }
+  .pointer {
+    position: absolute; left: 50%; top: -14px;
+    width: 34px; height: 46px; margin-left: -17px;
+    transform-origin: 50% 8px;
+    transition: transform 70ms ease-out;
+    z-index: 2;
+    filter: drop-shadow(0 3px 2px rgba(0,0,0,0.5));
+  }
+  .pointer.kick { transform: rotate(-16deg); transition-duration: 25ms; }
+  .spin-btn {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 26%; aspect-ratio: 1; border-radius: 50%;
+    border: 5px solid #3A2800;
+    background: radial-gradient(circle at 38% 32%, #FFE9A8, var(--gold) 55%, #D9961A);
+    color: var(--gold-ink);
+    font-family: var(--display); font-size: clamp(0.95rem, 3.8vw, 1.3rem);
+    cursor: pointer;
+    box-shadow: 0 4px 0 #3A2800;
+    transition: transform 120ms ease;
+  }
+  .spin-btn:hover:not(:disabled) { transform: translate(-50%, -50%) scale(1.05); }
+  .spin-btn:active:not(:disabled) { transform: translate(-50%, -50%) scale(0.96); }
+  .spin-btn:disabled { cursor: default; }
+
+  .filters { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 0.75rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .chip {
+    border: 1.5px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 999px; padding: 0.25rem 0.75rem; font: inherit; font-size: 0.875rem; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); font-weight: 700; }
+  .check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; }
+  .check input { width: 1.1rem; height: 1.1rem; accent-color: var(--gold); }
+  .pool-note { font-size: 0.875rem; color: var(--muted); margin: 0; }
+
+  /* Result: the dinner is revealed on letter tiles */
+  .result {
+    width: 100%; max-width: 440px;
+    background: var(--surface); border: 2px solid var(--gold); border-radius: 18px;
+    padding: 1.25rem 1.25rem 1.1rem;
+  }
+  .result[hidden] { display: none; }
+  .board { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; margin: 0 0 0.6rem; }
+  .board .word { display: flex; flex-wrap: wrap; gap: 3px; }
+  .tile {
+    width: 1.75em; height: 2.2em;
+    display: grid; place-items: center;
+    background: var(--ink); color: #1A1440;
+    border: 3px solid #2E9E6A; border-radius: 4px;
+    font-family: var(--display); font-size: clamp(0.9rem, 3.6vw, 1.15rem);
+    animation: turn 0.35s ease-out backwards;
+  }
+  .tile.punct { background: transparent; border-color: transparent; color: var(--ink); width: auto; }
+  @keyframes turn {
+    from { transform: rotateY(90deg); background: #2E9E6A; color: transparent; }
+    to { transform: rotateY(0); }
+  }
+  .result p { margin: 0.4rem 0 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+
+  /* Buttons & form */
+  .btn {
+    font: inherit; font-weight: 700; border-radius: 10px; padding: 0.6rem 1rem; cursor: pointer;
+    border: 2px solid var(--gold); background: var(--gold); color: var(--gold-ink);
+  }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn.small { padding: 0.3rem 0.65rem; font-size: 0.875rem; border-radius: 8px; }
+  .btn.danger { background: transparent; color: var(--danger); border-color: transparent; }
+  .link { color: var(--gold); font-weight: 700; }
+  :focus-visible { outline: 3px solid var(--bulb); outline-offset: 2px; }
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  legend { font-weight: 700; font-size: 0.9rem; padding: 0; margin-bottom: 0.25rem; }
+  .picker { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .pick-btn {
+    font: inherit; font-weight: 700; min-width: 3rem; padding: 0.4rem 0.65rem; border-radius: 8px; cursor: pointer;
+    border: 1.5px solid var(--line); background: var(--stage); color: var(--muted);
+  }
+  .pick-btn[aria-pressed="true"] { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+  .filter-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.95rem; font-weight: 700; }
+  .rate-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.9rem; font-size: 0.9rem; font-weight: 700; }
+
+  section h2.title { font-family: var(--display); font-weight: 400; font-size: 1.5rem; color: var(--gold); margin: 0 0 0.75rem; }
+  form {
+    background: var(--surface); border-radius: 18px; padding: 1.1rem; display: grid; gap: 0.75rem;
+    border: 1.5px solid var(--line);
+  }
+  label { display: grid; gap: 0.25rem; font-weight: 700; font-size: 0.9rem; }
+  label span.hint { font-weight: 400; color: var(--muted); }
+  input[type="text"], input[type="url"], textarea {
+    font: inherit; font-weight: 400; color: var(--ink); background: var(--stage);
+    border: 1.5px solid var(--line); border-radius: 10px; padding: 0.55rem 0.7rem; width: 100%;
+  }
+  input::placeholder, textarea::placeholder { color: #7D75B8; }
+  textarea { min-height: 4.5rem; resize: vertical; }
+  .row2 { display: grid; gap: 0.75rem; }
+  @media (min-width: 520px) { .row2 { grid-template-columns: 1fr 1fr; } }
+
+  .list-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin: 1.75rem 0 0.5rem; }
+  .list-head h3 { font-weight: 700; font-size: 1.15rem; margin: 0; }
+  .search { max-width: 12rem; }
+  ul.recipes { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--line); }
+  ul.recipes li {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; align-items: start;
+    padding: 0.8rem 0; border-bottom: 1.5px solid var(--line);
+  }
+  ul.recipes li.off .name { color: var(--muted); text-decoration: line-through; }
+  .name { font-weight: 700; }
+  .meta { font-size: 0.85rem; color: var(--muted); }
+  .row-actions { display: flex; gap: 0.15rem; flex-wrap: wrap; justify-content: flex-end; }
+  .empty { color: var(--muted); padding: 1rem 0; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    background: var(--gold); color: var(--gold-ink); font-weight: 700;
+    padding: 0.6rem 1rem; border-radius: 10px;
+    font-size: 0.95rem; max-width: 90vw; z-index: 10;
+  }
+  .toast[hidden] { display: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) {
+    .marquee.chasing, .marquee.flash, .tile { animation: none; }
+    .pointer, .pointer.kick { transition: none; transform: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="marquee" id="marquee"><h1>Wheel of Dinner</h1></div>
+    <div class="header-row">
+      <span id="sync">Loading recipes…</span>
+      <button class="sound-btn" id="sound" type="button" aria-pressed="true">Sound on</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="stage" aria-label="Dinner wheel">
+      <div class="wheel-box">
+        <svg class="pointer" id="pointer" viewBox="0 0 34 46" aria-hidden="true"><path d="M17 44 L3 10 A14 14 0 1 1 31 10 Z" fill="#FFC93C" stroke="#3A2800" stroke-width="3" stroke-linejoin="round"/><circle cx="17" cy="12" r="4.5" fill="#3A2800"/></svg>
+        <canvas id="wheel" aria-hidden="true"></canvas>
+        <button class="spin-btn" id="spin">Spin</button>
+      </div>
+
+      <div class="result" id="result" hidden aria-live="polite">
+        <h2 id="r-name" class="sr-only"></h2>
+        <div class="board" id="board" aria-hidden="true"></div>
+        <div class="meta" id="r-meta"></div>
+        <p id="r-notes"></p>
+        <p id="r-link"></p>
+        <div class="rate-row"><span id="r-rate-label">How was it?</span><div class="picker" id="r-rate" role="group" aria-labelledby="r-rate-label"></div></div>
+        <div class="actions">
+          <button class="btn" id="make">We're making this</button>
+          <button class="btn ghost" id="again">Spin again</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <div class="chips" id="chips" aria-label="Only spin these tags"></div>
+        <div class="filter-row"><span id="budget-label">Price</span><div class="picker" id="budget" role="group" aria-labelledby="budget-label"></div></div>
+        <label class="check"><input type="checkbox" id="skipRecent" checked> Skip meals we made in the last 7 days</label>
+        <p class="pool-note" id="pool-note"></p>
+      </div>
+    </section>
+
+    <section aria-labelledby="recipes-title">
+      <h2 class="title" id="recipes-title">Recipes</h2>
+      <form id="form" autocomplete="off">
+        <label>Name <input type="text" id="f-name" maxlength="120" required spellcheck="true" autocorrect="on" autocapitalize="words" placeholder="Sheet-pan chicken fajitas"></label>
+        <div class="row2">
+          <label>Link <span class="hint">optional</span><input type="url" id="f-url" placeholder="https://…"></label>
+          <label>Tags <span class="hint">comma separated</span><input type="text" id="f-tags" placeholder="chicken, quick"></label>
+        </div>
+        <div class="row2">
+          <fieldset><legend>Rating <span class="hint" style="font-weight:400;color:var(--muted)">higher = picked more</span></legend><div class="picker" id="f-rating"></div></fieldset>
+          <fieldset><legend>Price</legend><div class="picker" id="f-price"></div></fieldset>
+        </div>
+        <label>Notes <span class="hint">optional</span><textarea id="f-notes" maxlength="1000" placeholder="Double the sauce. Kids like it with rice."></textarea></label>
+        <div class="actions" style="margin-top:0">
+          <button class="btn" type="submit" id="f-submit">Add recipe</button>
+          <button class="btn ghost" type="button" id="f-cancel" hidden>Cancel</button>
+        </div>
+      </form>
+
+      <div class="list-head">
+        <h3 id="count">Your recipes</h3>
+        <input type="text" class="search" id="search" placeholder="Search" aria-label="Search recipes">
+      </div>
+      <ul class="recipes" id="list"></ul>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const COLORS = ["#E53935", "#FFC93C", "#1E88E5", "#43A047", "#8E24AA", "#FB8C00", "#EC407A", "#00897B"];
+  const DARK_TEXT = new Set(["#FFC93C", "#FB8C00"]);
+  const SOUND_KEY = "dinnerwheel-sound";
+  // How much wheel space each rating gets. Unrated counts like 2 stars.
+  const WEIGHT = { 0: 2, 1: 1, 2: 2, 3: 4 };
+  const STARS = (n) => "★".repeat(n);
+  const DOLLARS = (n) => "$".repeat(n);
+  const LOCAL_KEY = "dinnerwheel-recipes";
+  const PASS_KEY = "dinnerwheel-passcode";
+  const RECENT_DAYS = 7;
+
+  const $ = (id) => document.getElementById(id);
+  const state = {
+    recipes: [],
+    mode: "cloud",
+    tags: new Set(),
+    editing: null,
+    rotation: 0,
+    spinning: false,
+    picked: null,
+    bulbPhase: 0,
+    budget: 3,
+    formRating: 0,
+    formPrice: 0,
+  };
+
+  /* ---------- storage ---------- */
+  const readLocal = () => {
+    try { return JSON.parse(localStorage.getItem(LOCAL_KEY)) || []; } catch { return []; }
+  };
+  const writeLocal = (list) => {
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(list)); } catch {}
+  };
+  const getPass = () => { try { return localStorage.getItem(PASS_KEY) || ""; } catch { return ""; } };
+  const setPass = (p) => { try { localStorage.setItem(PASS_KEY, p); } catch {} };
+
+  function applyOp(list, op) {
+    const copy = list.map((r) => ({ ...r }));
+    if (op.action === "add") {
+      copy.push({ ...op.recipe, id: op.recipe.id || crypto.randomUUID(), createdAt: new Date().toISOString() });
+    } else if (op.action === "update") {
+      const r = copy.find((x) => x.id === op.id);
+      if (r) Object.assign(r, op.changes);
+    } else if (op.action === "delete") {
+      return copy.filter((x) => x.id !== op.id);
+    }
+    return copy;
+  }
+
+  async function load() {
+    try {
+      const res = await fetch("/api/recipes", { cache: "no-store" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (!Array.isArray(data.recipes)) throw new Error();
+      state.mode = "cloud";
+      state.recipes = data.recipes;
+    } catch {
+      state.mode = "local";
+      state.recipes = readLocal();
+    }
+    $("sync").textContent = state.mode === "cloud"
+      ? "Shared across your devices"
+      : "Saving on this device only";
+  }
+
+  async function send(op, retried = false) {
+    if (state.mode === "local") {
+      state.recipes = applyOp(state.recipes, op);
+      writeLocal(state.recipes);
+      return true;
+    }
+    try {
+      const res = await fetch("/api/recipes", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-passcode": getPass() },
+        body: JSON.stringify(op),
+      });
+      if (res.status === 401 && !retried) {
+        const p = prompt("Enter your household passcode to make changes:");
+        if (!p) { toast("Change not saved. A passcode is needed to edit recipes."); return false; }
+        setPass(p.trim());
+        return send(op, true);
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || "Change not saved. Try again."); return false; }
+      state.recipes = data.recipes;
+      return true;
+    } catch {
+      toast("Couldn't reach the server. Check your connection and try again.");
+      return false;
+    }
+  }
+
+  /* ---------- helpers ---------- */
+  const parseTags = (s) => [...new Set(s.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 10);
+  const daysSince = (iso) => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 : Infinity;
+  const lastMadeText = (iso) => {
+    if (!iso) return "Not made yet";
+    const d = Math.floor(daysSince(iso));
+    if (d <= 0) return "Made today";
+    if (d === 1) return "Made yesterday";
+    return `Made ${d} days ago`;
+  };
+  const metaText = (r, extra = []) => [
+    r.rating ? STARS(r.rating) : "Not rated",
+    r.price ? DOLLARS(r.price) : "",
+    (r.tags || []).join(", "),
+    lastMadeText(r.lastMade),
+    ...extra,
+  ].filter(Boolean).join(" | ");
+
+  function buildPicker(el, labels, current, onPick, aria) {
+    el.textContent = "";
+    labels.forEach((text, i) => {
+      const value = i + 1;
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "pick-btn"; b.textContent = text;
+      b.setAttribute("aria-label", aria(value));
+      b.setAttribute("aria-pressed", String(current === value));
+      b.onclick = () => onPick(current === value ? 0 : value);
+      el.append(b);
+    });
+  }
+  const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? u : "";
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.hidden = true), 3200);
+  }
+
+  function pool() {
+    const skip = $("skipRecent").checked;
+    return state.recipes
+      .filter((r) => r.active !== false)
+      .filter((r) => !state.tags.size || (r.tags || []).some((t) => state.tags.has(t)))
+      .filter((r) => !skip || daysSince(r.lastMade) >= RECENT_DAYS)
+      .filter((r) => !r.price || r.price <= state.budget)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /* ---------- wheel ---------- */
+  const canvas = $("wheel");
+  const ctx = canvas.getContext("2d");
+  let wheelItems = [];
+
+  function sizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(w * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawWheel();
+  }
+
+  function drawWheel() {
+    const size = canvas.clientWidth;
+    if (!size) return;
+    const css = getComputedStyle(document.documentElement);
+    const surface = css.getPropertyValue("--surface").trim();
+    const muted = css.getPropertyValue("--muted").trim();
+    const cx = size / 2, cy = size / 2, r = size / 2 - 18;
+    ctx.clearRect(0, 0, size, size);
+
+    const n = wheelItems.length;
+    if (!n) {
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = surface; ctx.fill();
+      drawRim(cx, cy, r, []);
+      ctx.fillStyle = muted; ctx.font = `600 ${Math.max(13, size / 30)}px ${css.getPropertyValue("--body")}`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(state.recipes.length ? "No meals match these filters" : "Add a recipe to fill the wheel", cx, cy + size * 0.22);
+      return;
+    }
+
+    const fontSize = Math.max(10, Math.min(18, size / (n > 16 ? 34 : n > 10 ? 28 : 24)));
+    const slices = sliceAngles(wheelItems);
+    for (let i = 0; i < n; i++) {
+      const seg = slices[i].end - slices[i].start;
+      const a0 = state.rotation + slices[i].start - Math.PI / 2;
+      const color = n > 1 && i === n - 1 && colorIndex(i) === colorIndex(0) ? COLORS[(colorIndex(i) + 2) % COLORS.length] : COLORS[colorIndex(i)];
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, a0, a0 + seg); ctx.closePath();
+      ctx.fillStyle = color; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = "#140F3A"; ctx.stroke();
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(a0 + seg / 2);
+      ctx.fillStyle = DARK_TEXT.has(color) ? "#1A1440" : "#FFFFFF";
+      ctx.font = `700 ${fontSize}px ${css.getPropertyValue("--body")}`;
+      ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      const room = r - 16 - size * 0.13 - 12;
+      let label = wheelItems[i].name;
+      if (ctx.measureText(label).width > room) {
+        while (label.length > 1 && ctx.measureText(label + "…").width > room) label = label.slice(0, -1);
+        label = label.trimEnd() + "…";
+      }
+      ctx.fillText(label, r - 16, 0);
+      ctx.restore();
+    }
+    drawRim(cx, cy, r, n > 1 ? slices.map((sl) => state.rotation + sl.start - Math.PI / 2) : []);
+  }
+
+  // Studio rim: a dark band studded with bulbs, plus gold pegs between slices.
+  function drawRim(cx, cy, r, pegAngles) {
+    ctx.beginPath(); ctx.arc(cx, cy, r + 8, 0, Math.PI * 2);
+    ctx.lineWidth = 18; ctx.strokeStyle = "#2A1E66"; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, r + 17, 0, Math.PI * 2);
+    ctx.lineWidth = 2; ctx.strokeStyle = "#FFC93C"; ctx.stroke();
+    const bulbs = 28;
+    for (let i = 0; i < bulbs; i++) {
+      const a = (i / bulbs) * Math.PI * 2;
+      const lit = (i + state.bulbPhase) % 2 === 0;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(a) * (r + 8), cy + Math.sin(a) * (r + 8), 3.6, 0, Math.PI * 2);
+      ctx.fillStyle = lit ? "#FFE9A8" : "#6B5A2A";
+      if (lit) { ctx.shadowColor = "#FFC93C"; ctx.shadowBlur = 8; }
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    for (const a of pegAngles) {
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(a) * (r - 7), cy + Math.sin(a) * (r - 7), 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#FFC93C"; ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = "#3A2800"; ctx.stroke();
+    }
+  }
+  const colorIndex = (i) => i % COLORS.length;
+
+  function sliceAngles(items) {
+    const total = items.reduce((sum, r) => sum + (WEIGHT[r.rating || 0] || 2), 0);
+    let at = 0;
+    return items.map((r) => {
+      const size = ((WEIGHT[r.rating || 0] || 2) / total) * Math.PI * 2;
+      const slice = { start: at, end: at + size };
+      at += size;
+      return slice;
+    });
+  }
+
+  function spin() {
+    if (state.spinning) return;
+    wheelItems = pool();
+    if (!wheelItems.length) {
+      toast(state.recipes.length ? "No meals match. Clear a tag or turn off “Skip meals we made”." : "Add a recipe first.");
+      drawWheel();
+      return;
+    }
+    // Slice size is proportional to rating weight, so a uniform random point
+    // on the circle picks higher-rated meals more often.
+    const slices = sliceAngles(wheelItems);
+    const point = Math.random() * Math.PI * 2;
+    let pick = slices.findIndex((s) => point < s.end);
+    if (pick === -1) pick = slices.length - 1;
+    const span = slices[pick].end - slices[pick].start;
+    const center = (slices[pick].start + slices[pick].end) / 2;
+    const jitter = (Math.random() - 0.5) * span * 0.7;
+    const want = -(center + jitter);
+    const TAU = Math.PI * 2;
+    const delta = (((want - state.rotation) % TAU) + TAU) % TAU;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const start = state.rotation;
+    const target = start + (reduce ? 0 : TAU * 6) + delta;
+    const duration = reduce ? 500 : 4800;
+    const t0 = performance.now();
+
+    state.spinning = true;
+    $("spin").disabled = true;
+    $("result").hidden = true;
+    audio(); // unlock audio on this tap (required by phones)
+    const marquee = $("marquee");
+    marquee.classList.remove("flash");
+    marquee.classList.add("chasing");
+    let lastSlice = sliceAtPointer(slices);
+
+    const ease = (t) => 1 - Math.pow(1 - t, 4);
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / duration);
+      state.rotation = start + (target - start) * ease(t);
+      const now_slice = sliceAtPointer(slices);
+      if (now_slice !== lastSlice) { lastSlice = now_slice; tick(); }
+      drawWheel();
+      if (t < 1) requestAnimationFrame(frame);
+      else {
+        state.rotation = target % TAU;
+        state.spinning = false;
+        marquee.classList.remove("chasing");
+        void marquee.offsetWidth;
+        marquee.classList.add("flash");
+        playWin();
+        $("spin").disabled = false;
+        showResult(wheelItems[pick]);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function sliceAtPointer(slices) {
+    const TAU = Math.PI * 2;
+    const a = (((-state.rotation) % TAU) + TAU) % TAU;
+    const i = slices.findIndex((s) => a < s.end);
+    return i === -1 ? slices.length - 1 : i;
+  }
+
+  let kickTimer;
+  function tick() {
+    state.bulbPhase ^= 1;
+    playTick();
+    const ptr = $("pointer");
+    ptr.classList.add("kick");
+    clearTimeout(kickTimer);
+    kickTimer = setTimeout(() => ptr.classList.remove("kick"), 45);
+  }
+
+  /* ---------- sound (synthesized, no audio files) ---------- */
+  const sound = { ctx: null, on: true, last: 0, noise: null };
+  try { sound.on = localStorage.getItem(SOUND_KEY) !== "off"; } catch {}
+
+  function audio() {
+    if (!sound.on) return null;
+    if (!sound.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      sound.ctx = new AC();
+      const len = Math.floor(sound.ctx.sampleRate * 0.04);
+      sound.noise = sound.ctx.createBuffer(1, len, sound.ctx.sampleRate);
+      const d = sound.noise.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (sound.ctx.state === "suspended") sound.ctx.resume();
+    return sound.ctx;
+  }
+
+  // The flapper slapping a peg: a bright noise snap plus a short woody knock.
+  function playTick() {
+    const a = audio();
+    if (!a) return;
+    const now = a.currentTime;
+    if (now - sound.last < 0.028) return;
+    sound.last = now;
+
+    const src = a.createBufferSource();
+    src.buffer = sound.noise;
+    const bp = a.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = 2400; bp.Q.value = 1.4;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.55, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+    src.connect(bp).connect(g).connect(a.destination);
+    src.start(now); src.stop(now + 0.04);
+
+    const o = a.createOscillator();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(1300, now);
+    o.frequency.exponentialRampToValueAtTime(420, now + 0.03);
+    const g2 = a.createGain();
+    g2.gain.setValueAtTime(0.28, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    o.connect(g2).connect(a.destination);
+    o.start(now); o.stop(now + 0.05);
+  }
+
+  // A bright rising chime when the wheel lands.
+  function playWin() {
+    const a = audio();
+    if (!a) return;
+    const now = a.currentTime + 0.05;
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((f, i) => {
+      const t = now + i * 0.1;
+      const last = i === notes.length - 1;
+      [1, 2].forEach((mult) => {
+        const o = a.createOscillator();
+        o.type = mult === 1 ? "triangle" : "sine";
+        o.frequency.value = f * mult;
+        const g = a.createGain();
+        const peak = (mult === 1 ? 0.22 : 0.07);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(peak, t + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.001, t + (last ? 1.2 : 0.35));
+        o.connect(g).connect(a.destination);
+        o.start(t); o.stop(t + (last ? 1.3 : 0.4));
+      });
+    });
+  }
+
+  function renderSoundBtn() {
+    const b = $("sound");
+    b.textContent = sound.on ? "Sound on" : "Sound off";
+    b.setAttribute("aria-pressed", String(sound.on));
+  }
+
+  function renderBoard(name) {
+    const board = $("board");
+    board.textContent = "";
+    let n = 0;
+    for (const word of name.split(/\s+/).filter(Boolean)) {
+      const w = document.createElement("span");
+      w.className = "word";
+      for (const ch of word) {
+        const t = document.createElement("span");
+        t.className = /[\p{L}\p{N}]/u.test(ch) ? "tile" : "tile punct";
+        t.textContent = ch.toUpperCase();
+        t.style.animationDelay = `${n++ * 55}ms`;
+        w.append(t);
+      }
+      board.append(w);
+    }
+  }
+
+  function showResult(r) {
+    state.picked = r.id;
+    $("r-name").textContent = r.name;
+    renderBoard(r.name);
+    $("r-meta").textContent = metaText(r);
+    renderResultRating(r);
+    $("r-notes").textContent = r.notes || "";
+    $("r-notes").hidden = !r.notes;
+    const link = $("r-link");
+    link.textContent = "";
+    const u = safeUrl(r.url);
+    if (u) {
+      const a = document.createElement("a");
+      a.href = u; a.target = "_blank"; a.rel = "noopener"; a.className = "link";
+      a.textContent = "Open the recipe";
+      link.append(a);
+    }
+    link.hidden = !u;
+    $("result").hidden = false;
+    $("make").disabled = false;
+    $("make").textContent = "We're making this";
+  }
+
+  function renderResultRating(r) {
+    buildPicker($("r-rate"), ["★", "★★", "★★★"], r.rating || 0, async (value) => {
+      if (await send({ action: "update", id: r.id, changes: { rating: value } })) {
+        const fresh = state.recipes.find((x) => x.id === r.id);
+        if (fresh) { $("r-meta").textContent = metaText(fresh); renderResultRating(fresh); }
+        renderList(); renderPoolNote();
+        if (!state.spinning) { wheelItems = pool(); drawWheel(); }
+      }
+    }, (v) => `Rate ${v} star${v > 1 ? "s" : ""}`);
+  }
+
+  function renderBudget() {
+    const el = $("budget");
+    el.textContent = "";
+    [[3, "Any"], [2, "$$ or less"], [1, "$ only"]].forEach(([value, text]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "pick-btn"; b.textContent = text;
+      b.setAttribute("aria-pressed", String(state.budget === value));
+      b.onclick = () => { state.budget = value; refresh(); };
+      el.append(b);
+    });
+  }
+
+  function renderFormPickers() {
+    buildPicker($("f-rating"), ["★", "★★", "★★★"], state.formRating,
+      (v) => { state.formRating = v; renderFormPickers(); }, (v) => `${v} star${v > 1 ? "s" : ""}`);
+    buildPicker($("f-price"), ["$", "$$", "$$$"], state.formPrice,
+      (v) => { state.formPrice = v; renderFormPickers(); }, (v) => ["", "Cheap", "Moderate", "Pricey"][v]);
+  }
+
+  /* ---------- rendering ---------- */
+  function renderChips() {
+    const all = [...new Set(state.recipes.flatMap((r) => r.tags || []))].sort();
+    for (const t of [...state.tags]) if (!all.includes(t)) state.tags.delete(t);
+    const box = $("chips");
+    box.textContent = "";
+    if (!all.length) return;
+    const allBtn = document.createElement("button");
+    allBtn.className = "chip"; allBtn.type = "button";
+    allBtn.textContent = "Everything";
+    allBtn.setAttribute("aria-pressed", String(!state.tags.size));
+    allBtn.onclick = () => { state.tags.clear(); refresh(); };
+    box.append(allBtn);
+    for (const t of all) {
+      const b = document.createElement("button");
+      b.className = "chip"; b.type = "button"; b.textContent = t;
+      b.setAttribute("aria-pressed", String(state.tags.has(t)));
+      b.onclick = () => { state.tags.has(t) ? state.tags.delete(t) : state.tags.add(t); refresh(); };
+      box.append(b);
+    }
+  }
+
+  function renderList() {
+    const q = $("search").value.trim().toLowerCase();
+    const list = $("list");
+    list.textContent = "";
+    const items = [...state.recipes]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .filter((r) => !q || r.name.toLowerCase().includes(q) || (r.tags || []).some((t) => t.includes(q)));
+    $("count").textContent = `Your recipes (${state.recipes.length})`;
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.style.display = "block";
+      li.textContent = state.recipes.length ? "No recipes match that search." : "No recipes yet. Add the first one above.";
+      list.append(li);
+      return;
+    }
+    for (const r of items) {
+      const li = document.createElement("li");
+      if (r.active === false) li.classList.add("off");
+
+      const body = document.createElement("div");
+      const name = document.createElement("div");
+      name.className = "name";
+      const u = safeUrl(r.url);
+      if (u) {
+        const a = document.createElement("a");
+        a.href = u; a.target = "_blank"; a.rel = "noopener"; a.className = "link";
+        a.textContent = r.name;
+        name.append(a);
+      } else name.textContent = r.name;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = metaText(r, [r.active === false ? "Off the wheel" : ""]);
+      body.append(name, meta);
+
+      const acts = document.createElement("div");
+      acts.className = "row-actions";
+      const toggle = btn(r.active === false ? "Put on wheel" : "Take off wheel", "ghost small", async () => {
+        if (await send({ action: "update", id: r.id, changes: { active: r.active === false } })) refresh();
+      });
+      const edit = btn("Edit", "ghost small", () => startEdit(r));
+      const del = btn("Delete", "danger small", async () => {
+        if (!confirm(`Delete “${r.name}”?`)) return;
+        if (await send({ action: "delete", id: r.id })) { toast(`Deleted ${r.name}`); refresh(); }
+      });
+      acts.append(toggle, edit, del);
+      li.append(body, acts);
+      list.append(li);
+    }
+  }
+
+  function btn(text, cls, onClick) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = `btn ${cls}`; b.textContent = text; b.onclick = onClick;
+    return b;
+  }
+
+  function renderPoolNote() {
+    const p = pool();
+    const total = state.recipes.length;
+    $("pool-note").textContent = total
+      ? `${p.length} of ${total} meals on the wheel right now. Higher-rated meals get bigger slices.`
+      : "";
+  }
+
+  function refresh() {
+    renderChips();
+    renderBudget();
+    renderList();
+    renderPoolNote();
+    if (!state.spinning) { wheelItems = pool(); drawWheel(); }
+  }
+
+  /* ---------- form ---------- */
+  function startEdit(r) {
+    state.editing = r.id;
+    $("f-name").value = r.name;
+    $("f-url").value = r.url || "";
+    $("f-tags").value = (r.tags || []).join(", ");
+    $("f-notes").value = r.notes || "";
+    state.formRating = r.rating || 0;
+    state.formPrice = r.price || 0;
+    renderFormPickers();
+    $("f-submit").textContent = "Save changes";
+    $("f-cancel").hidden = false;
+    $("form").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("f-name").focus({ preventScroll: true });
+  }
+  function resetForm() {
+    state.editing = null;
+    $("form").reset();
+    state.formRating = 0;
+    state.formPrice = 0;
+    renderFormPickers();
+    $("f-submit").textContent = "Add recipe";
+    $("f-cancel").hidden = true;
+  }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("f-name").value.trim();
+    if (!name) return;
+    const data = {
+      name,
+      url: safeUrl($("f-url").value.trim()),
+      tags: parseTags($("f-tags").value),
+      rating: state.formRating,
+      price: state.formPrice,
+      notes: $("f-notes").value.trim(),
+    };
+    $("f-submit").disabled = true;
+    const ok = state.editing
+      ? await send({ action: "update", id: state.editing, changes: data })
+      : await send({ action: "add", recipe: { ...data, active: true, lastMade: null } });
+    $("f-submit").disabled = false;
+    if (ok) {
+      toast(state.editing ? `Saved ${name}` : `Added ${name}`);
+      resetForm();
+      refresh();
+    }
+  });
+  $("f-cancel").onclick = resetForm;
+  $("search").addEventListener("input", renderList);
+  $("skipRecent").addEventListener("change", refresh);
+  $("spin").onclick = spin;
+  $("sound").onclick = () => {
+    sound.on = !sound.on;
+    try { localStorage.setItem(SOUND_KEY, sound.on ? "on" : "off"); } catch {}
+    renderSoundBtn();
+    if (sound.on) playTick();
+  };
+  $("again").onclick = spin;
+  $("make").onclick = async () => {
+    if (!state.picked) return;
+    $("make").disabled = true;
+    const ok = await send({ action: "update", id: state.picked, changes: { lastMade: new Date().toISOString() } });
+    if (ok) {
+      $("make").textContent = "Marked as made today";
+      const r = state.recipes.find((x) => x.id === state.picked);
+      if (r) $("r-meta").textContent = metaText(r);
+      renderList(); renderPoolNote();
+    } else $("make").disabled = false;
+  };
+
+  window.addEventListener("resize", sizeCanvas);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawWheel);
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible" && state.mode === "cloud" && !state.spinning) {
+      await load(); refresh();
+    }
+  });
+
+  (async () => {
+    renderFormPickers();
+    renderSoundBtn();
+    sizeCanvas();
+    await load();
+    refresh();
+    document.fonts && document.fonts.ready.then(drawWheel);
+  })();
+})();
+</script>
+</body>
+</html>
